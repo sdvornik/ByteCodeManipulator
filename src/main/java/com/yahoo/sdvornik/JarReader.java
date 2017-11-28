@@ -232,10 +232,29 @@ public class JarReader {
         for(int k = 0; k< size; ++k) {
           Field f = modClass.getFields()[k];
           if(f.getType().toString().equals("java.lang.String[]")) {
-            out.println(f.getSignatureIndex()+"   "+k);
-            out.println(f.getNameIndex());
+            out.println(f.getSignature());
+            out.println(f.getName());
 
-            instructionList.append(new PUTSTATIC(f.getNameIndex()  + f.getSignatureIndex()));
+            out.println(modClass.getConstantPool()
+              .lookupFieldref(
+                modClass.getClassName(),
+                "replacers",
+                "[Ljava/lang/String;"// String signature
+              ));
+
+            out.println(modClass.getConstantPool());
+            /*
+            instructionList.append(
+              new PUTSTATIC(
+                modClass.getConstantPool()
+                  .lookupFieldref(
+                    "java.lang.String[]",
+                    "replacers",
+                    "(Ljava/lang/String;)Ljava/lang/String;"// String signature
+                  )
+              )
+            );
+            */
           }
 
         }

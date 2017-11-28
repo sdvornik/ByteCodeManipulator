@@ -4,11 +4,151 @@ package com.yahoo.sdvornik;
  * @author Serg Dvornik <sdvornik@yahoo.com>
  */
 import java.io.IOException;
+
+import com.sun.org.apache.xalan.internal.xsltc.compiler.util.ClassGenerator;
+import com.sun.org.apache.xalan.internal.xsltc.compiler.util.MethodGenerator;
 import org.apache.bcel.classfile.*;
 import org.apache.bcel.generic.*;
 import org.apache.bcel.*;
 
+import static jdk.internal.org.objectweb.asm.Opcodes.ACC_PUBLIC;
+import static jdk.internal.org.objectweb.asm.Opcodes.ACC_STATIC;
+
 public class InjectCodeBCEL {
+/*
+  private void compileStaticInitializer(ClassGenerator classGen) {
+    final ConstantPoolGen cpg = classGen.getConstantPool();
+    final InstructionList il = new InstructionList();
+
+    final MethodGenerator staticConst =
+      new MethodGenerator(ACC_PUBLIC|ACC_STATIC,
+        org.apache.bcel.generic.Type.VOID,
+        null, null, "<clinit>",
+        _className, il, cpg);
+
+    addStaticField(classGen, "[" + STRING_SIG, STATIC_NAMES_ARRAY_FIELD);
+    addStaticField(classGen, "[" + STRING_SIG, STATIC_URIS_ARRAY_FIELD);
+    addStaticField(classGen, "[I", STATIC_TYPES_ARRAY_FIELD);
+    addStaticField(classGen, "[" + STRING_SIG, STATIC_NAMESPACE_ARRAY_FIELD);
+    // Create fields of type char[] that will contain literal text from
+    // the stylesheet.
+    final int charDataFieldCount = getXSLTC().getCharacterDataCount();
+    for (int i = 0; i < charDataFieldCount; i++) {
+      addStaticField(classGen, STATIC_CHAR_DATA_FIELD_SIG,
+        STATIC_CHAR_DATA_FIELD+i);
+    }
+
+// Put the names array into the translet - used for dom/translet mapping
+    final Vector namesIndex = getXSLTC().getNamesIndex();
+    int size = namesIndex.size();
+    String[] namesArray = new String[size];
+    String[] urisArray = new String[size];
+    int[] typesArray = new int[size];
+
+    int index;
+    for (int i = 0; i < size; i++) {
+      String encodedName = (String)namesIndex.elementAt(i);
+      if ((index = encodedName.lastIndexOf(':')) > -1) {
+        urisArray[i] = encodedName.substring(0, index);
+      }
+
+      index = index + 1;
+      if (encodedName.charAt(index) == '@') {
+        typesArray[i] = DTM.ATTRIBUTE_NODE;
+        index++;
+      } else if (encodedName.charAt(index) == '?') {
+        typesArray[i] = DTM.NAMESPACE_NODE;
+        index++;
+      } else {
+        typesArray[i] = DTM.ELEMENT_NODE;
+      }
+
+      if (index == 0) {
+        namesArray[i] = encodedName;
+      }
+      else {
+        namesArray[i] = encodedName.substring(index);
+      }
+    }
+
+    il.append(new PUSH(cpg, size));
+    il.append(new ANEWARRAY(cpg.addClass(STRING)));
+
+    for (int i = 0; i < size; i++) {
+      final String name = namesArray[i];
+      il.append(DUP);
+      il.append(new PUSH(cpg, i));
+      il.append(new PUSH(cpg, name));
+      il.append(AASTORE);
+    }
+    il.append(new PUTSTATIC(cpg.addFieldref(_className,
+      STATIC_NAMES_ARRAY_FIELD,
+      NAMES_INDEX_SIG)));
+
+    il.append(new PUSH(cpg, size));
+    il.append(new ANEWARRAY(cpg.addClass(STRING)));
+
+    for (int i = 0; i < size; i++) {
+      final String uri = urisArray[i];
+      il.append(DUP);
+      il.append(new PUSH(cpg, i));
+      il.append(new PUSH(cpg, uri));
+      il.append(AASTORE);
+    }
+    il.append(new PUTSTATIC(cpg.addFieldref(_className,
+      STATIC_URIS_ARRAY_FIELD,
+      URIS_INDEX_SIG)));
+
+    il.append(new PUSH(cpg, size));
+    il.append(new NEWARRAY(BasicType.INT));
+
+    for (int i = 0; i < size; i++) {
+      final int nodeType = typesArray[i];
+      il.append(DUP);
+      il.append(new PUSH(cpg, i));
+      il.append(new PUSH(cpg, nodeType));
+      il.append(IASTORE);
+    }
+    il.append(new PUTSTATIC(cpg.addFieldref(_className,
+      STATIC_TYPES_ARRAY_FIELD,
+      TYPES_INDEX_SIG)));
+
+// Put the namespace names array into the translet
+    final Vector namespaces = getXSLTC().getNamespaceIndex();
+    il.append(new PUSH(cpg, namespaces.size()));
+    il.append(new ANEWARRAY(cpg.addClass(STRING)));
+
+    for (int i = 0; i < namespaces.size(); i++) {
+      final String ns = (String)namespaces.elementAt(i);
+      il.append(DUP);
+      il.append(new PUSH(cpg, i));
+      il.append(new PUSH(cpg, ns));
+      il.append(AASTORE);
+    }
+    il.append(new PUTSTATIC(cpg.addFieldref(_className,
+      STATIC_NAMESPACE_ARRAY_FIELD,
+      NAMESPACE_INDEX_SIG)));
+
+    // Grab all the literal text in the stylesheet and put it in a char[]
+    final int charDataCount = getXSLTC().getCharacterDataCount();
+    final int toCharArray = cpg.addMethodref(STRING, "toCharArray", "()[C");
+    for (int i = 0; i < charDataCount; i++) {
+      il.append(new PUSH(cpg, getXSLTC().getCharacterData(i)));
+      il.append(new INVOKEVIRTUAL(toCharArray));
+      il.append(new PUTSTATIC(cpg.addFieldref(_className,
+        STATIC_CHAR_DATA_FIELD+i,
+        STATIC_CHAR_DATA_FIELD_SIG)));
+    }
+
+    il.append(RETURN);
+
+    staticConst.stripAttributes(true);
+    staticConst.setMaxLocals();
+    staticConst.setMaxStack();
+    classGen.addMethod(staticConst.getMethod());
+
+  }
+*/
 
   static public void main(String args[]) {
     //Get class to modify from program argument
