@@ -20,7 +20,7 @@ import static java.lang.System.out;
 /**
  * @author Serg Dvornik <sdvornik@yahoo.com>
  */
-public class JarReader {
+public class JarTransformer {
 
   private final String pathToInputJar;
 
@@ -28,7 +28,7 @@ public class JarReader {
 
   private final Configuration conf;
 
-  public JarReader(String pathToInputJar, String pathToOutputDirectory, Configuration conf) {
+  public JarTransformer(String pathToInputJar, String pathToOutputDirectory, Configuration conf) {
 
     this.pathToInputJar = pathToInputJar;
 

@@ -30,14 +30,12 @@ public class Configuration {
 
     Config conf = ConfigFactory.parseFile(new File(pathToConf));
 
-    // read metadata transformation from config
     databaseProductName = Try.ofFailable(() -> conf.getString("DatabaseProductName")).toOptional().orElse(null);
 
     databaseProductVersion = Try.ofFailable(() -> conf.getString("DatabaseProductVersion")).toOptional().orElse(null);
 
     databaseMajorVersion = Try.ofFailable(() -> conf.getInt("DatabaseMajorVersion")).toOptional().orElse(null);
 
-    // read sql transformation from config
     sqlMatchersReplacers = Try.ofFailable(() ->
       conf
         .getConfigList("sql")

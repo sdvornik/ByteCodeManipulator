@@ -20,7 +20,7 @@ public class Main {
     String pathToConfig = Paths.get(sourceFolder).resolve(configFilename).toString();
     Configuration conf = new Configuration(pathToConfig);
 
-    JarReader reader = new JarReader(pathToInputJar, outputFolder, conf);
+    JarTransformer reader = new JarTransformer(pathToInputJar, outputFolder, conf);
     reader.extract();
   }
 
