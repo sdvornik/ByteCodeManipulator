@@ -7,10 +7,10 @@ import java.util.regex.Pattern;
  */
 public final class MatcherReplacer {
 
-  public final Pattern pattern;
+  public final String pattern;
   public final String replacer;
 
-  public MatcherReplacer(Pattern pattern, String replacer) {
+  public MatcherReplacer(String pattern, String replacer) {
     this.pattern = pattern;
     this.replacer = replacer;
   }

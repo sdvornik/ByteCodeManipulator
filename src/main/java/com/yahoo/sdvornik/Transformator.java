@@ -8,8 +8,10 @@ import java.util.regex.Pattern;
  */
 public class Transformator {
 
-  private static Pattern[] patterns = new Pattern[]{Pattern.compile("a"), Pattern.compile("b")};
-  private static String[] replacers = new String[]{"c", "d"};
+  private Transformator() {}
+
+  private static Pattern[] patterns = null;
+  private static String[] replacers = null;
 
   public static String transform(String sql) {
     int length = patterns.length;

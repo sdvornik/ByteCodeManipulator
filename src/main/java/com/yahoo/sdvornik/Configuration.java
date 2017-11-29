@@ -19,7 +19,7 @@ public class Configuration {
 
   private final MatcherReplacer[] sqlMatchersReplacers;
 
-  public final Pattern[] matchers;
+  public final String[] matchers;
   public final String[] replacers;
 
   public final String databaseProductName;
@@ -44,14 +44,14 @@ public class Configuration {
         .stream()
         .map(elm ->
           new MatcherReplacer(
-            Pattern.compile(elm.getString("Match"), Pattern.CASE_INSENSITIVE),
+            elm.getString("Match"),
             elm.getString("Replace")
           )
         ).toArray(MatcherReplacer[]::new)
     ).toOptional().orElse(null);
 
     if(sqlMatchersReplacers != null) {
-      matchers = Stream.of(sqlMatchersReplacers).map(mr -> mr.pattern).toArray(size -> new Pattern[size]);
+      matchers = Stream.of(sqlMatchersReplacers).map(mr -> mr.pattern).toArray(size -> new String[size]);
       replacers = Stream.of(sqlMatchersReplacers).map(mr -> mr.replacer).toArray(size -> new String[size]);
     }
     else {

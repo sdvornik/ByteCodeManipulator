@@ -2,7 +2,7 @@ package com.yahoo.sdvornik;
 
 
 
-import org.apache.bcel.Constants;
+import org.apache.bcel.Const;
 import org.apache.bcel.Repository;
 import org.apache.bcel.classfile.*;
 import org.apache.bcel.generic.*;
@@ -10,9 +10,9 @@ import org.apache.bcel.generic.*;
 import java.io.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.CodeSigner;
 import java.util.*;
 import java.util.jar.*;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static java.lang.System.out;
@@ -199,7 +199,7 @@ public class JarReader {
     if(conf.matchers != null && conf.replacers != null) {
 
       JavaClass jcMod = modifyTransformator();
-      jos.putNextEntry(new JarEntry(jcMod.getClassName()));
+      jos.putNextEntry(new JarEntry("com/yahoo/sdvornik/Transformator.class"));
       byte[] buffer = jcMod.getBytes();
       jos.write(buffer, 0, buffer.length);
       jos.flush();
@@ -212,88 +212,70 @@ public class JarReader {
     try {
       JavaClass jc = Repository.lookupClass("com.yahoo.sdvornik.Transformator");
       ClassGen modClass = new ClassGen(jc);
+      ConstantPoolGen cp = modClass.getConstantPool();
 
       Method[] methodArr = modClass.getMethods();
       for(int i = 0; i < methodArr.length; ++i) {
         if(! methodArr[i].getName().equals("<clinit>")) continue;
         Method oldMethod = methodArr[i];
-        out.println(methodArr[i].getName());
-
-        int refToStrArr = modClass.getConstantPool().lookupClass("java.util.regex.Pattern");
-        out.println(refToStrArr);
-          //.addArrayClass(new ArrayType(Type.STRING, 1));
-
         InstructionList instructionList = new InstructionList();
-        instructionList.append(new PUSH(modClass.getConstantPool(), conf.replacers.length));
+
+        int refToStrArr = cp.addClass(ObjectType.STRING);
+        out.println("reference to string array: "+refToStrArr);
+
+        instructionList.append(new PUSH(cp, conf.replacers.length));
         instructionList.append(new ANEWARRAY(refToStrArr));
         for(int j = 0; j < conf.replacers.length; ++j) {
           instructionList.append(new DUP());
-          instructionList.append(new PUSH(modClass.getConstantPool(), j));
-          instructionList.append(new LDC(modClass.getConstantPool().addString(conf.replacers[j])));
+          instructionList.append(new PUSH(cp, j));
+          instructionList.append(new LDC(cp.addString(conf.replacers[j])));
           instructionList.append(new AASTORE());
         }
         instructionList.append(
           new PUTSTATIC(
-            modClass.getConstantPool()
-              .lookupFieldref(
+            cp.lookupFieldref(
                 modClass.getClassName(),
                 "replacers",
                 "[Ljava/lang/String;"// String signature
-              )
+            )
           )
         );
 
-        out.println(modClass.getConstantPool()
-          .lookupFieldref(
-            modClass.getClassName(),
-            "patterns",
-            "[Ljava/util/regex/Pattern;"// String signature
-          ));
+        int refToPatternArr = cp.addClass(new ObjectType("java.util.regex.Pattern"));
 
-        int refToMatchersArr = modClass.getConstantPool().addArrayClass(new ArrayType(
-          new ObjectType("java.util.regex.Pattern"), 1)
-        );
+        out.println("reference to pattern array: "+refToPatternArr);
+        instructionList.append(new PUSH(cp, conf.matchers.length));
+        instructionList.append(new ANEWARRAY(refToPatternArr));
 
-        out.println(modClass.getConstantPool());
-        instructionList.append(new PUSH(modClass.getConstantPool(), conf.matchers.length));
-        instructionList.append(new ANEWARRAY(refToMatchersArr));
-        /*
         for(int j = 0; j < conf.matchers.length; ++j) {
           instructionList.append(new DUP());
-          instructionList.append(new PUSH(modClass.getConstantPool(), j));
-          instructionList.append(new LDC(modClass.getConstantPool().addString(conf.matchers[j])));
+          instructionList.append(new PUSH(cp, j));
+          instructionList.append(new ICONST(Pattern.CASE_INSENSITIVE));
+          instructionList.append(new LDC(cp.addString(conf.matchers[j])));
+          instructionList.append(
+            new INVOKESTATIC(
+              cp.addMethodref(
+                "java.util.regex.Pattern",
+                "compile",
+                "(Ljava/lang/String;I)Ljava/util/regex/Pattern;"
+              )
+            )
+          );
           instructionList.append(new AASTORE());
         }
-
         instructionList.append(
           new PUTSTATIC(
             modClass.getConstantPool()
               .lookupFieldref(
                 modClass.getClassName(),
-                "matchers",
-                "[Ljava/util/regex/Pattern;"// String signature
+                "patterns",
+                "[Ljava/util/regex/Pattern;"
               )
           )
         );
-*/
-
-        /*
-    ICONST_2
-    ANEWARRAY java/lang/String
-    DUP
-    ICONST_0
-    LDC "c"
-    AASTORE
-    DUP
-    ICONST_1
-    LDC "d"
-    AASTORE
-    PUTSTATIC com/yahoo/sdvornik/Transformator.replacers : [Ljava/lang/String;
-         */
-
 
         MethodGen mg = new MethodGen(
-          Constants.ACC_PUBLIC,
+          Const.ACC_PUBLIC,
           oldMethod.getReturnType(),
           oldMethod.getArgumentTypes(),
           null,
@@ -307,27 +289,8 @@ public class JarReader {
 
         modClass.removeMethod(oldMethod);
         modClass.addMethod(mg.getMethod());
-
       }
 
-
-      /*
-      ConstantPoolGen cpGen = modClass.getConstantPool();
-      int size = modClass.getFields().length;
-
-      FieldGen strField = new FieldGen(
-        Constants.ACC_PUBLIC|Constants.ACC_STATIC,
-        new ArrayType(Type.STRING, 1),
-        "",
-        cpGen
-      );
-
-      for(int i = 0; i< size; ++i) {
-        Field f = modClass.getFields()[i];
-
-        out.println(modClass.getFields()[i]+"   "+i);
-      }
-      */
       return modClass.getJavaClass();
     }
     catch (ClassNotFoundException e) {
@@ -344,7 +307,7 @@ public class JarReader {
     instructionList.append(new IRETURN());
 
     MethodGen mg = new MethodGen(
-      Constants.ACC_PUBLIC,
+      Const.ACC_PUBLIC,
       Type.INT,
       oldMethod.getArgumentTypes(),
       null,
@@ -368,7 +331,7 @@ public class JarReader {
     instructionList.append(new ARETURN());
 
     MethodGen mg = new MethodGen(
-      Constants.ACC_PUBLIC,
+      Const.ACC_PUBLIC,
       Type.STRING,
       oldMethod.getArgumentTypes(),
       null,
@@ -407,7 +370,7 @@ public class JarReader {
     instructionList.append(new ARETURN());
 
     MethodGen mg = new MethodGen(
-      Constants.ACC_PUBLIC,
+      Const.ACC_PUBLIC,
       Type.STRING,
       oldMethod.getArgumentTypes(),
       null,
