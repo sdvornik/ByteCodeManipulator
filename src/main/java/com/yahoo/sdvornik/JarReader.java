@@ -219,47 +219,63 @@ public class JarReader {
         Method oldMethod = methodArr[i];
         out.println(methodArr[i].getName());
 
-        int refToStrArr = modClass.getConstantPool().addArrayClass(new ArrayType(Type.STRING, 1));
+        int refToStrArr = modClass.getConstantPool().lookupClass("java.util.regex.Pattern");
+        out.println(refToStrArr);
+          //.addArrayClass(new ArrayType(Type.STRING, 1));
 
         InstructionList instructionList = new InstructionList();
         instructionList.append(new PUSH(modClass.getConstantPool(), conf.replacers.length));
         instructionList.append(new ANEWARRAY(refToStrArr));
         for(int j = 0; j < conf.replacers.length; ++j) {
+          instructionList.append(new DUP());
+          instructionList.append(new PUSH(modClass.getConstantPool(), j));
           instructionList.append(new LDC(modClass.getConstantPool().addString(conf.replacers[j])));
           instructionList.append(new AASTORE());
         }
-        int size = modClass.getFields().length;
-        for(int k = 0; k< size; ++k) {
-          Field f = modClass.getFields()[k];
-          if(f.getType().toString().equals("java.lang.String[]")) {
-            out.println(f.getSignature());
-            out.println(f.getName());
-
-            out.println(modClass.getConstantPool()
+        instructionList.append(
+          new PUTSTATIC(
+            modClass.getConstantPool()
               .lookupFieldref(
                 modClass.getClassName(),
                 "replacers",
                 "[Ljava/lang/String;"// String signature
-              ));
-
-            out.println(modClass.getConstantPool());
-            /*
-            instructionList.append(
-              new PUTSTATIC(
-                modClass.getConstantPool()
-                  .lookupFieldref(
-                    "java.lang.String[]",
-                    "replacers",
-                    "(Ljava/lang/String;)Ljava/lang/String;"// String signature
-                  )
               )
-            );
-            */
-          }
+          )
+        );
 
+        out.println(modClass.getConstantPool()
+          .lookupFieldref(
+            modClass.getClassName(),
+            "patterns",
+            "[Ljava/util/regex/Pattern;"// String signature
+          ));
+
+        int refToMatchersArr = modClass.getConstantPool().addArrayClass(new ArrayType(
+          new ObjectType("java.util.regex.Pattern"), 1)
+        );
+
+        out.println(modClass.getConstantPool());
+        instructionList.append(new PUSH(modClass.getConstantPool(), conf.matchers.length));
+        instructionList.append(new ANEWARRAY(refToMatchersArr));
+        /*
+        for(int j = 0; j < conf.matchers.length; ++j) {
+          instructionList.append(new DUP());
+          instructionList.append(new PUSH(modClass.getConstantPool(), j));
+          instructionList.append(new LDC(modClass.getConstantPool().addString(conf.matchers[j])));
+          instructionList.append(new AASTORE());
         }
-        //
 
+        instructionList.append(
+          new PUTSTATIC(
+            modClass.getConstantPool()
+              .lookupFieldref(
+                modClass.getClassName(),
+                "matchers",
+                "[Ljava/util/regex/Pattern;"// String signature
+              )
+          )
+        );
+*/
 
         /*
     ICONST_2
