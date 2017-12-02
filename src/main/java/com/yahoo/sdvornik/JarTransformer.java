@@ -1,19 +1,19 @@
 package com.yahoo.sdvornik;
 
 
-
 import org.apache.bcel.Const;
-import org.apache.bcel.Repository;
-import org.apache.bcel.classfile.*;
+import org.apache.bcel.classfile.ClassParser;
+import org.apache.bcel.classfile.JavaClass;
+import org.apache.bcel.classfile.Method;
 import org.apache.bcel.generic.*;
 
-import java.io.*;
-import java.nio.file.Path;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.Enumeration;
+import java.util.Iterator;
 import java.util.jar.*;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import static java.lang.System.out;
 
@@ -81,100 +81,116 @@ public class JarTransformer {
 
         JavaClass jc = parser.parse();
 
-        ClassGen modClass = null;
+        ClassGen classGen = null;
 
         Method[] methodArr = null;
 
         for (String elm : jc.getInterfaceNames()) {
+
           switch (elm) {
             case "java.sql.PreparedStatement":
-              modClass = new ClassGen(jc);
-              methodArr = jc.getMethods();
-              for (Method m : methodArr) {
+              for (Method m : jc.getMethods()) {
                 switch (m.getName()) {
-
-                  // "executeQuery", "executeUpdate", "execute", "addBatch"
-
+                  case "executeQuery":
+                  case "executeUpdate":
+                  case "execute":
+                  case "addBatch":
+                    modified = true;
+                    classGen = new ClassGen(jc);
+                    replaceMethod(classGen, m);
+                    break;
+                  default:
+                    continue;
                 }
               }
 
-            break;
+              break;
 
             case "java.sql.CallableStatement":
-              modClass = new ClassGen(jc);
-              methodArr = jc.getMethods();
-              for (Method m : methodArr) {
+              modified = true;
+              classGen = new ClassGen(jc);
+              for (Method m : jc.getMethods()) {
                 switch (m.getName()) {
-
-                  // "executeQuery", "executeUpdate", "execute", "addBatch"
-
+                  case "executeQuery":
+                  case "executeUpdate":
+                  case "execute":
+                  case "addBatch":
+                    replaceMethod(classGen, m);
+                    break;
+                  default:
+                    continue;
                 }
               }
-            break;
+              break;
 
             case "java.sql.Connection":
-              modClass = new ClassGen(jc);
-              methodArr = jc.getMethods();
-              for (Method m : methodArr) {
+              modified = true;
+              classGen = new ClassGen(jc);
+              for (Method m : jc.getMethods()) {
                 switch (m.getName()) {
-
-                  // "prepareStatement", "prepareCall", "nativeSQL"
-
+                  case "prepareStatement":
+                  case "prepareCall":
+                  case "nativeSQL":
+                    replaceMethod(classGen, m);
+                    break;
+                  default:
+                    continue;
                 }
               }
 
               break;
 
             case "java.sql.Statement":
-              modClass = new ClassGen(jc);
-              methodArr = jc.getMethods();
-              for (Method m : methodArr) {
+              modified = true;
+              classGen = new ClassGen(jc);
+
+              for (Method m : jc.getMethods()) {
                 switch (m.getName()) {
-
-                  // "executeQuery", "executeUpdate", "execute", "addBatch"
-
+                  case "executeQuery":
+                  case "executeUpdate":
+                  case "execute":
+                  case "addBatch":
+                    replaceMethod(classGen, m);
+                    break;
+                  default:
+                    continue;
                 }
               }
 
               break;
 
             case "java.sql.DatabaseMetaData":
+              classGen = new ClassGen(jc);
 
-              modClass = new ClassGen(jc);
-
-              methodArr = jc.getMethods();
-
-              for (Method m : methodArr) {
+              for (Method m : jc.getMethods()) {
                 switch (m.getName()) {
                   case "getDatabaseMajorVersion":
                     if (conf.databaseMajorVersion != null) {
                       modified = true;
-                      createGetDatabaseMajorVersion(modClass, m);
+                      createGetDatabaseMajorVersion(classGen, m);
                     }
                     break;
 
                   case "getDatabaseProductVersion":
                     if (conf.databaseProductVersion != null) {
                       modified = true;
-                      createGetDatabaseProductVersion(modClass, m);
+                      createGetDatabaseProductVersion(classGen, m);
                     }
                     break;
                   case "getDatabaseProductName":
                     if (conf.databaseProductName != null) {
                       modified = true;
-                      createGetDatabaseProductName(modClass, m);
+                      createGetDatabaseProductName(classGen, m);
                     }
                     break;
                 }
               }
-
-              if (modified) {
-                out.println("modified");
-                jcMod = modClass.getJavaClass();
-              }
-
               break;
           }
+        }
+        if (modified) {
+          out.println("modified");
+          jcMod = classGen.getJavaClass();
         }
       }
       jos.putNextEntry(new JarEntry(inputJarEntry.getName()));
@@ -187,8 +203,7 @@ public class JarTransformer {
           jos.write(buffer, 0, bytesRead);
         }
         is.close();
-      }
-      else {
+      } else {
         byte[] buffer = jcMod.getBytes();
         jos.write(buffer, 0, buffer.length);
       }
@@ -196,7 +211,7 @@ public class JarTransformer {
       jos.closeEntry();
     }
     // add Transformator in jar
-    if(conf.matchers != null && conf.replacers != null) {
+    if (conf.matchers != null && conf.replacers != null) {
 
       JavaClass jcMod = modifyTransformator();
       jos.putNextEntry(new JarEntry("com/yahoo/sdvornik/Transformator.class"));
@@ -208,95 +223,282 @@ public class JarTransformer {
     jos.close();
   }
 
+  private void replaceMethod(ClassGen classGen, Method method) {
+    ConstantPoolGen cp = classGen.getConstantPool();
+    String className = classGen.getClassName();
+
+    MethodGen methodGen = new MethodGen(method, className, cp);
+
+    InstructionList insertedIL = new InstructionList();
+
+    InstructionList currentIL = methodGen.getInstructionList();
+
+    insertedIL.append(new ALOAD(1));
+    insertedIL.append(
+      new INVOKESTATIC(
+        cp.addMethodref(
+          "com.yahoo.sdvornik.Transformator",
+          "transform",
+          "(Ljava/lang/String;)Ljava/lang/String;"
+        )
+      )
+    );
+    insertedIL.append(new ASTORE(1));
+
+    Iterator instructionIterator = currentIL.iterator();
+    InstructionHandle ih = (InstructionHandle) instructionIterator.next();
+    currentIL.insert(ih, insertedIL);
+
+    methodGen.setMaxStack();
+
+    classGen.replaceMethod(method, methodGen.getMethod());
+
+  }
+
   public JavaClass modifyTransformator() {
-    try {
-      JavaClass jc = Repository.lookupClass("com.yahoo.sdvornik.Transformator");
-      ClassGen modClass = new ClassGen(jc);
-      ConstantPoolGen cp = modClass.getConstantPool();
 
-      Method[] methodArr = modClass.getMethods();
-      for(int i = 0; i < methodArr.length; ++i) {
-        if(! methodArr[i].getName().equals("<clinit>")) continue;
-        Method oldMethod = methodArr[i];
-        InstructionList instructionList = new InstructionList();
+    ClassGen genClass = new ClassGen(
+      "com.yahoo.sdvornik.Transformator",
+      "java.lang.Object",
+      "com/yahoo/sdvornik/Transformator.class",
+      Const.ACC_PUBLIC,
+      null
+    );
 
-        int refToStrArr = cp.addClass(ObjectType.STRING);
-        out.println("reference to string array: "+refToStrArr);
+    ConstantPoolGen cp = genClass.getConstantPool();
 
-        instructionList.append(new PUSH(cp, conf.replacers.length));
-        instructionList.append(new ANEWARRAY(refToStrArr));
-        for(int j = 0; j < conf.replacers.length; ++j) {
-          instructionList.append(new DUP());
-          instructionList.append(new PUSH(cp, j));
-          instructionList.append(new LDC(cp.addString(conf.replacers[j])));
-          instructionList.append(new AASTORE());
-        }
-        instructionList.append(
-          new PUTSTATIC(
-            cp.lookupFieldref(
-                modClass.getClassName(),
-                "replacers",
-                "[Ljava/lang/String;"// String signature
-            )
-          )
-        );
+    int refToStrArr = cp.addClass(ObjectType.STRING);
+    int refToPatternArr = cp.addClass(new ObjectType("java.util.regex.Pattern"));
+    cp.addClass(new ObjectType("java.util.regex.Matcher"));
+    cp.addClass(new ObjectType("java.lang.System"));
+    cp.addClass(new ObjectType("java.io.PrintStream"));
 
-        int refToPatternArr = cp.addClass(new ObjectType("java.util.regex.Pattern"));
 
-        out.println("reference to pattern array: "+refToPatternArr);
-        instructionList.append(new PUSH(cp, conf.matchers.length));
-        instructionList.append(new ANEWARRAY(refToPatternArr));
+    FieldGen patternFieldGen = new FieldGen(
+      Const.ACC_STATIC,
+      Type.getType("[Ljava/util/regex/Pattern;"),
+      "patterns",
+      cp
+    );
 
-        for(int j = 0; j < conf.matchers.length; ++j) {
-          instructionList.append(new DUP());
-          instructionList.append(new PUSH(cp, j));
-          instructionList.append(new ICONST(Pattern.CASE_INSENSITIVE));
-          instructionList.append(new LDC(cp.addString(conf.matchers[j])));
-          instructionList.append(
-            new INVOKESTATIC(
-              cp.addMethodref(
-                "java.util.regex.Pattern",
-                "compile",
-                "(Ljava/lang/String;I)Ljava/util/regex/Pattern;"
-              )
-            )
-          );
-          instructionList.append(new AASTORE());
-        }
-        instructionList.append(
-          new PUTSTATIC(
-            modClass.getConstantPool()
-              .lookupFieldref(
-                modClass.getClassName(),
-                "patterns",
-                "[Ljava/util/regex/Pattern;"
-              )
-          )
-        );
+    int patternsFieldRef = cp.addFieldref(
+      genClass.getClassName(),
+      "patterns",
+      "[Ljava/util/regex/Pattern;"
+    );
 
-        MethodGen mg = new MethodGen(
-          Const.ACC_PUBLIC,
-          oldMethod.getReturnType(),
-          oldMethod.getArgumentTypes(),
-          null,
-          oldMethod.getName(),
-          modClass.getClassName(),
-          instructionList,
-          modClass.getConstantPool()
-        );
-        mg.setMaxLocals();
-        mg.setMaxStack();
+    FieldGen replacerFieldGen = new FieldGen(
+      Const.ACC_STATIC,
+      Type.getType("[Ljava/lang/String;"),
+      "replacers",
+      cp
+    );
 
-        modClass.removeMethod(oldMethod);
-        modClass.addMethod(mg.getMethod());
-      }
+    int replacersFieldRef = cp.addFieldref(
+      genClass.getClassName(),
+      "replacers",
+      "[Ljava/lang/String;"
+    );
 
-      return modClass.getJavaClass();
+    int matcherMethodRef = cp.addMethodref(
+      "java.util.regex.Pattern",
+      "matcher",
+      "(Ljava/lang/CharSequence;)Ljava/util/regex/Matcher;"
+    );
+
+
+    int replacerMethodRef = cp.addMethodref(
+      "java.util.regex.Matcher",
+      "replaceAll",
+      "(Ljava/lang/String;)Ljava/lang/String;"
+    );
+
+    int initRef = cp.addMethodref(
+      "java.lang.Object",
+      "<init>",
+      "()V;"
+    );
+
+    int outFieldRef = cp.addFieldref(
+      "java.lang.System",
+      "out",
+      "Ljava/io/PrintStream;"
+    );
+
+    int printlnMethodRef = cp.addMethodref(
+      "java.io.PrintStream",
+      "println",
+      "(Ljava/lang/String;)V;"
+    );
+
+    out.println("printlnMethodRef: " + printlnMethodRef);
+
+    // TODO Create clinit
+    InstructionList clinitIL = new InstructionList();
+
+    clinitIL.append(new PUSH(cp, conf.replacers.length));
+    clinitIL.append(new ANEWARRAY(refToStrArr));
+
+    for (int j = 0; j < conf.replacers.length; ++j) {
+      clinitIL.append(new DUP());
+      clinitIL.append(new PUSH(cp, j));
+      clinitIL.append(new LDC(cp.addString(conf.replacers[j])));
+      clinitIL.append(new AASTORE());
     }
-    catch (ClassNotFoundException e) {
-      e.printStackTrace();
-      throw new RuntimeException();
+    clinitIL.append(new PUTSTATIC(replacersFieldRef));
+
+    clinitIL.append(new PUSH(cp, conf.matchers.length));
+    clinitIL.append(new ANEWARRAY(refToPatternArr));
+
+    for (int j = 0; j < conf.matchers.length; ++j) {
+      clinitIL.append(new DUP());
+      clinitIL.append(new PUSH(cp, j));
+      clinitIL.append(new LDC(cp.addString(conf.matchers[j])));
+      clinitIL.append(new ICONST(Pattern.CASE_INSENSITIVE));
+
+      clinitIL.append(
+        new INVOKESTATIC(
+          cp.addMethodref(
+            "java.util.regex.Pattern",
+            "compile",
+            "(Ljava/lang/String;I)Ljava/util/regex/Pattern;"
+          )
+        )
+      );
+      clinitIL.append(new AASTORE());
     }
+    clinitIL.append(new PUTSTATIC(patternsFieldRef));
+    clinitIL.append(new RETURN());
+
+    MethodGen clinitMethodGen = new MethodGen(
+      Const.ACC_STATIC,
+      Type.VOID,
+      Type.NO_ARGS,
+      null,
+      "<clinit>",
+      genClass.getClassName(),
+      clinitIL,
+      cp
+    );
+    clinitMethodGen.setMaxLocals();
+    clinitMethodGen.setMaxStack();
+
+    // TODO CREATE init
+    InstructionList initIL = new InstructionList();
+    initIL.append(new ALOAD(0));
+    initIL.append(new INVOKESPECIAL(initRef));
+
+    MethodGen initMethodGen = new MethodGen(
+      Const.ACC_PRIVATE,
+      Type.VOID,
+      Type.NO_ARGS,
+      null,
+      "<init>",
+      genClass.getClassName(),
+      initIL,
+      cp
+    );
+    initMethodGen.setMaxLocals();
+    initMethodGen.setMaxStack();
+
+
+
+    // TODO CREATE transform
+    InstructionList transformIL = new InstructionList();
+
+    int LENGTH = 1;
+    int COUNT = 2;
+
+    //GETSTATIC com/yahoo/sdvornik/Transformator.patterns : [Ljava/util/regex/Pattern;
+    transformIL.append(new GETSTATIC(patternsFieldRef));
+
+    // ARRAYLENGTH
+    transformIL.append(new ARRAYLENGTH());
+    // ISTORE 1
+    transformIL.append(new ISTORE(LENGTH));
+
+/*
+    transformIL.append(new GETSTATIC(outFieldRef));
+    transformIL.append(new ALOAD(0));
+    transformIL.append(new INVOKEVIRTUAL(printlnMethodRef));
+*/
+    // ICONST_0
+    transformIL.append(new ICONST(0));
+    // ISTORE 2
+    transformIL.append(new ISTORE(COUNT));
+
+    // ILOAD 2
+    InstructionHandle ifHandle = transformIL.append(new ILOAD(COUNT));
+    // ILOAD 1
+    transformIL.append(new ILOAD(LENGTH));
+    // IF_ICMPGE L3
+    BranchHandle ifCheck = transformIL.append(new IF_ICMPGE(null));
+
+    // GETSTATIC com/yahoo/sdvornik/Transformator.patterns : [Ljava/util/regex/Pattern;
+    transformIL.append(new GETSTATIC(patternsFieldRef));
+    // ILOAD 2
+    transformIL.append(new ILOAD(COUNT));
+    // AALOAD
+    transformIL.append(new AALOAD());
+    // ALOAD 0
+    transformIL.append(new ALOAD(0));
+    // INVOKEVIRTUAL java/util/regex/Pattern.matcher (Ljava/lang/CharSequence;)Ljava/util/regex/Matcher;
+    transformIL.append(new INVOKEVIRTUAL(matcherMethodRef));
+    // GETSTATIC com/yahoo/sdvornik/Transformator.replacers : [Ljava/lang/String;
+    transformIL.append(new GETSTATIC(replacersFieldRef));
+    // ILOAD 2
+    transformIL.append(new ILOAD(COUNT));
+    // AALOAD
+    transformIL.append(new AALOAD());
+    // INVOKEVIRTUAL java/util/regex/Matcher.replaceAll (Ljava/lang/String;)Ljava/lang/String;
+    transformIL.append(new INVOKEVIRTUAL(replacerMethodRef));
+    // ASTORE 0
+    transformIL.append(new ASTORE(0));
+    // ILOAD 2
+    transformIL.append(new ILOAD(COUNT));
+    // ICONST_1
+    transformIL.append(new ICONST(1));
+    // IADD
+    transformIL.append(new IADD());
+    // I2B
+    transformIL.append(new I2B());
+    // I2B
+    transformIL.append(new ISTORE(COUNT));
+
+
+/*
+    transformIL.append(new GETSTATIC(outFieldRef));
+    transformIL.append(new ALOAD(0));
+    transformIL.append(new INVOKEVIRTUAL(printlnMethodRef));
+*/
+
+    BranchHandle gotoJump = transformIL.append(new GOTO(ifHandle)); // GOTO L2
+    //L3
+    InstructionHandle endHandle = transformIL.append(new ALOAD(0)); // ALOAD 0
+    transformIL.append(new ARETURN()); // ARETURN
+
+    ifCheck.setTarget(endHandle);
+
+    MethodGen trannsformMethodGen = new MethodGen(
+      Const.ACC_PUBLIC | Const.ACC_STATIC,
+      Type.STRING,
+      new Type[]{Type.STRING},
+      new String[]{"sql"},
+      "transform",
+      "com.yahoo.sdvornik.Transform",
+      transformIL,
+      cp
+    );
+    trannsformMethodGen.setMaxLocals();
+    trannsformMethodGen.setMaxStack();
+
+    genClass.addField(replacerFieldGen.getField());
+    genClass.addField(patternFieldGen.getField());
+    genClass.addMethod(clinitMethodGen.getMethod());
+    genClass.addMethod(initMethodGen.getMethod());
+    genClass.addMethod(trannsformMethodGen.getMethod());
+    return genClass.getJavaClass();
+
   }
 
   public void createGetDatabaseMajorVersion(ClassGen modClass, Method oldMethod) {
