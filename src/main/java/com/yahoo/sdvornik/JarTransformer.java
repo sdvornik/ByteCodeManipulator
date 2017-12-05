@@ -9,6 +9,7 @@ import org.apache.bcel.generic.*;
 
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Enumeration;
 import java.util.Iterator;
@@ -24,11 +25,11 @@ public class JarTransformer {
 
   private final String pathToInputJar;
 
-  private final String pathToOutputDirectory;
+  private final Path pathToOutputDirectory;
 
   private final Configuration conf;
 
-  public JarTransformer(String pathToInputJar, String pathToOutputDirectory, Configuration conf) {
+  public JarTransformer(String pathToInputJar, Path pathToOutputDirectory, Configuration conf) {
 
     this.pathToInputJar = pathToInputJar;
 
@@ -43,7 +44,7 @@ public class JarTransformer {
 
     String outputJarName = inputJarName.replace(".jar", "-mod.jar");
 
-    String pathToOutputJar = Paths.get(pathToOutputDirectory).resolve(outputJarName).toString();
+    String pathToOutputJar = pathToOutputDirectory.resolve(outputJarName).toString();
 
     JarFile jar = new JarFile(this.pathToInputJar);
 
