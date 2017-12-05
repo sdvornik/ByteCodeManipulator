@@ -190,7 +190,7 @@ public class JarTransformer {
           }
         }
         if (modified) {
-          out.println("modified");
+
           jcMod = classGen.getJavaClass();
         }
       }
@@ -331,8 +331,6 @@ public class JarTransformer {
       "println",
       "(Ljava/lang/String;)V;"
     );
-
-    out.println("printlnMethodRef: " + printlnMethodRef);
 
     // TODO Create clinit
     InstructionList clinitIL = new InstructionList();
